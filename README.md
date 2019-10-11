@@ -1,3 +1,11 @@
+# What's New
+
+Fix _split, _cat, _sigmoid, _tanh, _mul, _imul
+ 
+Add adaptive_avg_pool2d
+
+------
+
 # The code is mainly come from [nn_tools](https://github.com/hahnyuan/nn_tools).Thanks for hahnyuan's contribution.
 # Neural Network Tools: Converter and Analyser
 

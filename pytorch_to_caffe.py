@@ -8,6 +8,9 @@ from Caffe import layer_param
 from torch.nn.modules.utils import _pair
 import numpy as np
 
+from torch.nn.modules.utils import _list_with_default
+
+
 """
 How to support a new layer type:
  layer_name=log.add_layer(layer_type_name)
@@ -53,6 +56,7 @@ class TransLog(object):
         :param inputs: is a list of input variables
         """
         self.add_blobs(inputs)
+        # print('id(input)=', id(input))
     def add_layer(self,name='layer'):
         if name in self.layers:
             return self.layers[name]
@@ -85,6 +89,7 @@ class TransLog(object):
     def blobs(self, var):
         var=id(var)
         if self.debug:
+            # KeyError if some layer not implemented 没注册的层会导致上层的输出没注册到blob，下层输入访问时找不到
             print("{}:{} getting".format(var, self._blobs[var]))
         try:
             return self._blobs[var]
@@ -99,6 +104,7 @@ def _conv2d(raw,input, weight, bias=None, stride=1, padding=0, dilation=1, group
     x=raw(input,weight,bias,stride,padding,dilation,groups)
     name=log.add_layer(name='conv')
     log.add_blobs([x],name='conv_blob')
+    # print(id(input), id(x))
     layer=caffe_net.Layer_param(name=name, type='Convolution',
                                 bottom=[log.blobs(input)], top=[log.blobs(x)])
     layer.conv_param(x.size()[1],weight.size()[2:],stride=_pair(stride),
@@ -148,8 +154,9 @@ def _split(raw,tensor, split_size, dim=0):
     top_blobs=log.add_blobs(x,name='split_blob')
     layer=caffe_net.Layer_param(name=layer_name, type='Slice',
                                 bottom=[log.blobs(tensor)], top=top_blobs)
-    slice_num=int(np.floor(tensor.size()[dim]/split_size))
-    slice_param=caffe_net.pb.SliceParameter(axis=dim,slice_point=[split_size*i for i in range(1,slice_num)])
+    # slice_num=int(np.floor(tensor.size()[dim]/split_size))
+    # slice_param=caffe_net.pb.SliceParameter(axis=dim,slice_point=[split_size*i for i in range(1,slice_num)])
+    slice_param=caffe_net.pb.SliceParameter(axis=dim,slice_point=np.cumsum(split_size).tolist()[:-1])
     layer.param.slice_param.CopyFrom(slice_param)
     log.cnet.add_layer(layer)
     return x
@@ -205,8 +212,8 @@ def _max(raw,*args):
         log.cnet.add_layer(layer)
     return x
 
-def _cat(raw,inputs, dimension=0):
-    x=raw(inputs, dimension)
+def _cat(raw,inputs, dim=0):
+    x=raw(inputs, dim)
     bottom_blobs=[]
     for input in inputs:
         bottom_blobs.append(log.blobs(input))
@@ -214,7 +221,7 @@ def _cat(raw,inputs, dimension=0):
     top_blobs=log.add_blobs([x],name='cat_blob')
     layer=caffe_net.Layer_param(name=layer_name,type='Concat',
                                 bottom=bottom_blobs,top=top_blobs)
-    layer.param.concat_param.axis =dimension
+    layer.param.concat_param.axis = dim
     log.cnet.add_layer(layer)
     return x
 
@@ -412,6 +419,7 @@ def _sigmoid(raw, input):
     layer = caffe_net.Layer_param(name=name, type='Sigmoid',
                                   bottom=[log.blobs(input)], top=[log.blobs(x)])
     log.cnet.add_layer(layer)
+    return x
 
 #tanh layer
 def _tanh(raw, input):
@@ -426,6 +434,7 @@ def _tanh(raw, input):
     layer = caffe_net.Layer_param(name=name, type='TanH',
                                   bottom=[log.blobs(input)], top=[log.blobs(x)])
     log.cnet.add_layer(layer)
+    return x
 
 # ----- for Variable operations --------
 
@@ -515,7 +524,7 @@ def _isub(input, *args):
     return x
 
 def _mul(input, *args):
-    x = raw__sub__(input, *args)
+    x = raw__mul__(input, *args)
     if not NET_INITTED:
         return x
     layer_name = log.add_layer(name='mul')
@@ -527,7 +536,7 @@ def _mul(input, *args):
     return x
 
 def _imul(input, *args):
-    x = raw__isub__(input, *args)
+    x = raw__imul__(input, *args)
     if not NET_INITTED:
         return x
     x = x.clone()
@@ -538,6 +547,12 @@ def _imul(input, *args):
     layer.param.eltwise_param.operation = 0  # product is 1
     layer.param.eltwise_param.coeff.extend([1., -1.])
     log.cnet.add_layer(layer)
+    return x
+
+def _adaptive_avg_pool2d(raw, input, output_size):
+    _output_size = _list_with_default(output_size, input.size())
+    x = raw(input, _output_size)
+    _pool('ave', raw, input, x, input.shape[2], input.shape[2], 0, False)
     return x
 
 
@@ -585,6 +600,7 @@ F.interpolate = Rp(F.interpolate,_interpolate)
 F.sigmoid = Rp(F.sigmoid,_sigmoid)
 F.tanh = Rp(F.tanh,_tanh)
 
+F.adaptive_avg_pool2d=Rp(F.adaptive_avg_pool2d, _adaptive_avg_pool2d)
 
 torch.split=Rp(torch.split,_split)
 torch.max=Rp(torch.max,_max)
@@ -640,7 +656,7 @@ def trans_net(net,input_var,name='TransferedPytorchModel'):
     NET_INITTED=True
     for name,layer in net.named_modules():
         layer_names[layer]=name
-    print("torch ops name:", layer_names)
+    # print("torch ops name:", layer_names)
     out = net.forward(input_var)
     print('Transform Completed')
 
