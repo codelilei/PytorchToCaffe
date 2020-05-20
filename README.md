@@ -1,5 +1,9 @@
 # What's New
+2020.5.20
+1. add suport for unequal pooling width and height
+2. update pooling parameter to support pytorch 1.5
 
+------
 Fix _split, _cat, _sigmoid, _tanh, _mul, _imul
  
 Add adaptive_avg_pool2d
