@@ -190,7 +190,7 @@ def _max_pool2d(raw,input, kernel_size, stride=None, padding=0, dilation=1,
     _pool('max',raw,input, x, kernel_size, stride, padding,ceil_mode)
     return x
 
-def _avg_pool2d(raw,input, kernel_size, stride = None, padding = 0, ceil_mode = False, count_include_pad = True):
+def _avg_pool2d(raw, input, kernel_size, stride=None, padding=0, ceil_mode=False, count_include_pad=True, divisor_override=None):
     x = raw(input, kernel_size, stride, padding, ceil_mode, count_include_pad)
     _pool('ave',raw,input, x, kernel_size, stride, padding,ceil_mode)
     return x
@@ -552,7 +552,10 @@ def _imul(input, *args):
 def _adaptive_avg_pool2d(raw, input, output_size):
     _output_size = _list_with_default(output_size, input.size())
     x = raw(input, _output_size)
-    _pool('ave', raw, input, x, input.shape[2], input.shape[2], 0, False)
+    if input.shape[2] == input.shape[3]:
+        _pool('ave', raw, input, x, input.shape[2], input.shape[2], 0, False)
+    else:
+        _pool('ave', raw, input, x, (input.shape[2], input.shape[3]), (input.shape[2], input.shape[3]), 0, False)
     return x
 
 

@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from . import caffe_pb2 as pb
 import numpy as np
 
-def pair_process(item,strict_one=True):
+def pair_process(item,strict_one=False):
     if hasattr(item,'__iter__'):
         for i in item:
             if i!=item[0]:
@@ -10,7 +10,8 @@ def pair_process(item,strict_one=True):
                     raise ValueError("number in item {} must be the same".format(item))
                 else:
                     print("IMPORTANT WARNING: number in item {} must be the same".format(item))
-        return item[0]
+        # return item[0]
+        return item[0], item[1]
     return item
 
 def pair_reduce(item):
@@ -76,8 +77,14 @@ class Layer_param():
     def pool_param(self,type='MAX',kernel_size=2,stride=2,pad=None, ceil_mode = True):
         pool_param=pb.PoolingParameter()
         pool_param.pool=pool_param.PoolMethod.Value(type)
-        pool_param.kernel_size=pair_process(kernel_size)
-        pool_param.stride=pair_process(stride)
+        try:
+            pool_param.kernel_size=pair_process(kernel_size)
+        except:
+            pool_param.kernel_h, pool_param.kernel_w=pair_process(kernel_size)
+        try:
+            pool_param.stride = pair_process(stride)
+        except:
+            pool_param.stride_h, pool_param.stride_w=pair_process(stride)
         pool_param.ceil_mode=ceil_mode
         if pad:
             if isinstance(pad,tuple):
